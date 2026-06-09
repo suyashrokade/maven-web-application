@@ -1,0 +1,46 @@
+pipeline {
+    agent any
+    tools {
+        maven 'Maven'
+    }
+    stages {
+        stage('1. Clone Source Code') {
+            steps {
+                git branch: 'master',
+                    url: 'https://github.com/suyashrokade/maven-web-application.git'
+            }
+        }
+        stage('2. SonarQube Code Quality') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh 'mvn clean verify sonar:sonar -Dsonar.projectKey=maven-web-application -DskipTests'
+                }
+            }
+        }
+        stage('3. Quality Gate Check') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        stage('4. Maven Build') {
+            steps {
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+        stage('5. Ansible Deploy') {
+            steps {
+                sh 'ansible-playbook -i /etc/ansible/hosts /etc/ansible/maven.yml'
+            }
+        }
+    }
+    post {
+        success {
+            echo 'Pipeline SUCCESS - Maven Web App deployed to Tomcat!'
+        }
+        failure {
+            echo 'Pipeline FAILED - Deployment stopped.'
+        }
+    }
+}
